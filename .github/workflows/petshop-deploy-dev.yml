@@ -1,0 +1,31 @@
+name: petshop deploy dev
+
+on:
+  workflow_dispatch:
+
+jobs:
+    verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+            - uses: hashicorp/setup-terraform@v3
+            - uses: actions/setup-python@v5
+                with:
+                    python-version: '3.12'
+            - name: Install API dependencies
+                run: python -m pip install -e .[dev]
+            - name: Validate generated API
+                run: |
+                    ruff check src tests
+                    pytest
+            - name: Validate Azure runtime definition
+                run: |
+                    terraform -chdir=infra/petshop fmt -check
+                    terraform -chdir=infra/petshop init -backend=false
+                    terraform -chdir=infra/petshop validate
+            - name: Probe deployed runtime
+                env:
+                    AIITOPS_APP_URL: ${{ vars.AIITOPS_APP_URL || '' }}
+                run: |
+                    test -n "$AIITOPS_APP_URL"
+                    curl --fail --show-error --silent "$AIITOPS_APP_URL/health"
